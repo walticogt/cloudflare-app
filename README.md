@@ -35,26 +35,36 @@ Texto comparativo con equivalentes conocidos:
 Archivo principal: `api/index.ts`
 
 ```typescript
+// index.ts
+export interface Env {
+  DB: D1Database; // Tipo para la base de datos D1
+}
+
 export default {
-  async fetch(request, env) {
+  async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
 
-    // 🔐 Permitir solo el frontend oficial
+    //  CORS restringido a tu frontend
     const allowedOrigin = "https://650242fc.blog-frontend-5dr.pages.dev";
+
     const origin = request.headers.get("Origin");
     const corsHeaders = {
-      "Access-Control-Allow-Origin": origin === allowedOrigin ? origin : "",
+      "Access-Control-Allow-Origin":
+        origin === allowedOrigin ? allowedOrigin : "",
       "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
       "Access-Control-Allow-Headers": "Content-Type",
     };
 
-    // 🧭 Manejar preflight (OPTIONS)
+    //  Manejo de preflight (OPTIONS)
     if (request.method === "OPTIONS") {
-      return new Response(null, { status: 204, headers: corsHeaders });
+      return new Response(null, {
+        status: 204,
+        headers: corsHeaders,
+      });
     }
 
     try {
-      // 📚 GET /posts — Listar todos los posts
+      //  GET /posts  listar publicaciones
       if (url.pathname === "/posts" && request.method === "GET") {
         const { results } = await env.DB.prepare(
           "SELECT * FROM posts ORDER BY id DESC"
@@ -65,9 +75,10 @@ export default {
         });
       }
 
-      // ✍️ POST /posts — Crear un nuevo post
+      //  POST /posts  agregar publicacin
       if (url.pathname === "/posts" && request.method === "POST") {
-        const { title, content } = await request.json();
+        const { title, content }: { title: string; content: string } =
+          await request.json();
         const date = new Date().toISOString();
 
         await env.DB.prepare(
@@ -81,16 +92,21 @@ export default {
         });
       }
 
-      // 🚫 Ruta desconocida
-      return new Response("Not Found", { status: 404, headers: corsHeaders });
-    } catch (err) {
-      return new Response(JSON.stringify({ error: err.message }), {
+      //  Ruta desconocida
+      return new Response("Not Found", {
+        status: 404,
+        headers: corsHeaders,
+      });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Error desconocido";
+      return new Response(JSON.stringify({ error: message }), {
         status: 500,
         headers: { "Content-Type": "application/json", ...corsHeaders },
       });
     }
   },
 };
+
 ```
 
 ---
@@ -99,13 +115,13 @@ export default {
 
 ```toml
 name = "blog-api"
-main = "index.ts"
-compatibility_date = "2024-10-30"
+main = "api/index.ts"
+compatibility_date = "2025-10-30"
 
 [[d1_databases]]
 binding = "DB"
 database_name = "blogdb"
-database_id = "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+database_id = "b506a016-1e88-47da-b990-d43192a6a6dd"
 ```
 
 ---
@@ -120,6 +136,12 @@ CREATE TABLE posts (
   date TEXT
 );
 ```
+Ejecuta:
+wrangler d1 execute blogdb --remote --command="CREATE TABLE posts (id INTEGER PRIMARY KEY, title TEXT, content TEXT, date TEXT);"
+
+Comprueba:
+wrangler d1 execute blogdb --remote --command="SELECT name FROM sqlite_master WHERE type='table';"
+
 
 ---
 
@@ -132,43 +154,58 @@ Archivo principal: `cloudflare-frontend/index.html`
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
-  <title>Mi Blog en Cloudflare D1</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Blog Cloudflare D1</title>
+  <style>
+    body { font-family: sans-serif; max-width: 600px; margin: 40px auto; }
+    h1 { color: #f38020; }
+    form { margin-bottom: 20px; }
+    input, textarea { width: 100%; margin-bottom: 10px; padding: 8px; }
+    button { background: #f38020; color: white; padding: 10px; border: none; cursor: pointer; }
+    button:hover { background: #d96f1b; }
+    .post { border-bottom: 1px solid #ccc; margin-bottom: 10px; padding-bottom: 10px; }
+  </style>
 </head>
 <body>
   <h1>Mi Blog en Cloudflare D1</h1>
   <form id="postForm">
-    <input type="text" id="title" placeholder="Título" required />
+    <input type="text" id="title" placeholder="Ttulo" required />
     <textarea id="content" placeholder="Contenido" required></textarea>
     <button type="submit">Publicar</button>
   </form>
+
   <div id="posts"></div>
 
   <script>
-    const API = "https://blog-api.ohuanca-lab.workers.dev/posts";
+    const API_URL = "https://blog-api.ohuanca-lab.workers.dev/posts";
 
-    async function cargarPosts() {
-      const res = await fetch(API);
-      const data = await res.json();
-      document.getElementById("posts").innerHTML = data
-        .map(p => \`<p><strong>\${p.title}</strong><br>\${p.content}<br><small>\${p.date}</small></p>\`)
-        .join("");
+    async function loadPosts() {
+      const res = await fetch(API_URL);
+      const posts = await res.json();
+      const container = document.getElementById("posts");
+      container.innerHTML = posts.map(p => `
+        <div class="post">
+          <h3>${p.title}</h3>
+          <p>${p.content}</p>
+          <small>${p.date}</small>
+        </div>
+      `).join("");
     }
 
-    document.getElementById("postForm").addEventListener("submit", async e => {
+    document.getElementById("postForm").addEventListener("submit", async (e) => {
       e.preventDefault();
-      await fetch(API, {
+      const title = document.getElementById("title").value;
+      const content = document.getElementById("content").value;
+      await fetch(API_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title: document.getElementById("title").value,
-          content: document.getElementById("content").value
-        })
+        body: JSON.stringify({ title, content })
       });
       e.target.reset();
-      cargarPosts();
+      loadPosts();
     });
 
-    cargarPosts();
+    loadPosts();
   </script>
 </body>
 </html>
@@ -197,3 +234,173 @@ El frontend muestra los posts en orden descendente (más recientes primero).
 
 - Backend: `https://blog-api.ohuanca-lab.workers.dev`
 - Frontend: `https://650242fc.blog-frontend-5dr.pages.dev`
+
+----
+🚀 Objetivo del mini proyecto
+
+Crearemos una mini app tipo blog o dashboard, con:
+Frontend estático (HTML/JS/CSS) → alojado en Cloudflare Pages
+Backend serverless (API) → en Cloudflare Workers
+Base de datos SQL → con Cloudflare D1
+
+Almacenamiento de archivos → con Cloudflare R2 (para subir imágenes o backups)
+🧩 Estructura general
+cloudflare-app/
+│
+├── /frontend         → Página web (HTML + JS + CSS)
+│     └── index.html
+│
+├── /api              → Cloudflare Worker (funciones)
+│     └── index.js
+│
+└── /db               → D1 Database (SQLite gestionada)
+
+🧱 Paso 1. Crear cuenta Cloudflare
+
+Entra en 👉 https://dash.cloudflare.com/sign-up
+Crea una cuenta gratuita.
+(Opcional) Compra o transfiere tu dominio al registrar Cloudflare Registrar (~10 USD/año).
+
+⚙️ Paso 2. Instalar la CLI Wrangler
+Wrangler es la herramienta oficial para desplegar Workers y D1.
+npm install -g wrangler
+
+
+Luego verifica:
+wrangler --version
+
+Y autentícate:
+wrangler login
+
+🗃️ Paso 3. Crear la base de datos D1
+wrangler d1 create blogdb
+
+Esto crea una base D1 llamada blogdb.
+Cloudflare te mostrará el ID de la base (por ejemplo xxxxxxxx-xxxx-xxxx).
+
+Puedes crear tablas luego con:
+
+wrangler d1 execute blogdb --command="CREATE TABLE posts (id INTEGER PRIMARY KEY, title TEXT, content TEXT, date TEXT);"
+
+🧠 Paso 4. Crear un Worker (backend API)
+Ejemplo de API que devuelve y guarda posts:
+
+api/index.js
+
+export default {
+  async fetch(request, env) {
+    const url = new URL(request.url);
+    
+    if (request.method === "GET" && url.pathname === "/posts") {
+      const { results } = await env.DB.prepare("SELECT * FROM posts ORDER BY id DESC;").all();
+      return Response.json(results);
+    }
+
+    if (request.method === "POST" && url.pathname === "/posts") {
+      const data = await request.json();
+      await env.DB.prepare("INSERT INTO posts (title, content, date) VALUES (?, ?, ?)")
+        .bind(data.title, data.content, new Date().toISOString())
+        .run();
+      return Response.json({ ok: true });
+    }
+
+    return new Response("Not found", { status: 404 });
+  },
+};
+
+
+wrangler.toml
+
+name = "blog-api"
+main = "api/index.js"
+compatibility_date = "2024-10-01"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "blogdb"
+database_id = "<ID_DE_TU_BASE>"
+
+
+Despliegas tu API con:
+
+wrangler deploy
+
+
+Te dará una URL tipo:
+
+https://blog-api.tu-nombre.workers.dev/posts
+
+🌐 Paso 5. Crear el frontend (Cloudflare Pages)
+
+Sube tu carpeta /frontend a un repo de GitHub (o GitLab).
+
+En el panel de Cloudflare → Pages → Create a Project → Connect to GitHub.
+
+Elige el repositorio y despliega.
+
+Configura variables de entorno si tu frontend consume la API del Worker.
+
+Ejemplo de frontend/index.html:
+
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Mi Blog Serverless</title>
+</head>
+<body>
+  <h1>Publicaciones</h1>
+  <div id="posts"></div>
+
+  <script>
+  async function loadPosts() {
+    const res = await fetch('https://blog-api.tu-nombre.workers.dev/posts');
+    const posts = await res.json();
+    document.getElementById('posts').innerHTML = posts.map(p => `
+      <article>
+        <h3>${p.title}</h3>
+        <p>${p.content}</p>
+        <small>${p.date}</small>
+      </article>
+    `).join('');
+  }
+  loadPosts();
+  </script>
+</body>
+</html>
+
+🗂️ Paso 6. (Opcional) Usar R2 para archivos
+
+Crea un bucket R2:
+
+wrangler r2 bucket create blogfiles
+
+
+Y puedes subir archivos desde código:
+
+const objectName = "imagen.jpg";
+await env.BUCKET.put(objectName, await request.arrayBuffer());
+
+
+En tu wrangler.toml:
+
+[[r2_buckets]]
+binding = "BUCKET"
+bucket_name = "blogfiles"
+
+🧩 Resultado final
+
+Frontend → https://tu-proyecto.pages.dev
+
+Backend API → https://blog-api.tu-nombre.workers.dev/posts
+
+Base SQL → D1 (blogdb)
+
+Archivos → R2 (blogfiles)
+
+Todo sin servidor, sin puertos, y con costos casi cero:
+
+Servicio	Costo
+Cloudflare Pages	Gratis
+Cloudflare D1	Gratis (hasta millones de consultas)
+Cloudflare R2	Gratis hasta 10 GB (según plan free)
+Cloudflare Worker	Gratis (hasta 100k solicitudes/día)
