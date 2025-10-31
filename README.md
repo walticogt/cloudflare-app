@@ -121,8 +121,10 @@ compatibility_date = "2025-10-30"
 [[d1_databases]]
 binding = "DB"
 database_name = "blogdb"
-database_id = "b506a016-1e88-47da-b990-d43192a6a6d*"
+database_id = "XXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX"
 ```
+Cambiar el ID, por "wrangler d1 create blogdb"
+
 
 ---
 
@@ -295,7 +297,6 @@ https://blog-api.tu-nombre.workers.dev/posts
 
 frontend/index.html:
 
-
 🗂️ Paso 6. (Opcional) Usar R2 para archivos
 
 Crea un bucket R2:
@@ -332,3 +333,42 @@ Cloudflare Pages	Gratis
 Cloudflare D1	Gratis (hasta millones de consultas)
 Cloudflare R2	Gratis hasta 10 GB (según plan free)
 Cloudflare Worker	Gratis (hasta 100k solicitudes/día)
+
+## Resumen comandos 
+```typescript
+PASO 1: Crear cuenta
+https://dash.cloudflare.com/sign-up
+
+PASO 2: Instalacion
+npm install -g wrangler
+wrangler --version
+wrangler login
+
+PASO 3: BD
+wrangler d1 create blogdb
+wrangler d1 execute blogdb --remote --command="CREATE TABLE posts (id INTEGER PRIMARY KEY, title TEXT, content TEXT, date TEXT);"
+wrangler d1 execute blogdb --remote --command="SELECT name FROM sqlite_master WHERE type='table';"
+
+PASO 4: Worker (API: .ts y wrangler.toml)
+-- crear archivo api/index.ts y wrangler.toml
+wrangler deploy
+
+-- otros comandos antes del deploy:
+wrangler dev
+curl -X POST "http://127.0.0.1:8787/posts" \
+     -H "Content-Type: application/json" \
+     -d '{"title": "Primer Post", "content": "Hola desde Cloudflare D1"}'
+curl http://127.0.0.1:8787/posts
+
+PASO 5: Page (HTML)
+--- crear carpeta /frontend .html
+npx serve
+wrangler pages deploy . --project-name=blog-frontend
+-- confirmar Y, confirmar nombre
+-- si no tienes problemas con los CORS, todo esta ya en nube.
+curl https://nombre.workers.dev/posts
+
+-- Recomendaciones, diferenciar trabajar en local / nube (allowedOrigin)  para q CORS en index.ts  no se modifique a cada rato.
+
+
+```
