@@ -121,7 +121,7 @@ compatibility_date = "2025-10-30"
 [[d1_databases]]
 binding = "DB"
 database_name = "blogdb"
-database_id = "b506a016-1e88-47da-b990-d43192a6a6dd"
+database_id = "b506a016-1e88-47da-b990-d43192a6a6d*"
 ```
 
 ---
