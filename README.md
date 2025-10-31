@@ -137,9 +137,11 @@ CREATE TABLE posts (
 );
 ```
 Ejecuta:
+
 wrangler d1 execute blogdb --remote --command="CREATE TABLE posts (id INTEGER PRIMARY KEY, title TEXT, content TEXT, date TEXT);"
 
 Comprueba:
+
 wrangler d1 execute blogdb --remote --command="SELECT name FROM sqlite_master WHERE type='table';"
 
 
@@ -245,15 +247,6 @@ Base de datos SQL → con Cloudflare D1
 
 Almacenamiento de archivos → con Cloudflare R2 (para subir imágenes o backups)
 🧩 Estructura general
-cloudflare-app/
-│
-├── /frontend         → Página web (HTML + JS + CSS)
-│     └── index.html
-│
-├── /api              → Cloudflare Worker (funciones)
-│     └── index.js
-│
-└── /db               → D1 Database (SQLite gestionada)
 
 🧱 Paso 1. Crear cuenta Cloudflare
 
@@ -263,8 +256,8 @@ Crea una cuenta gratuita.
 
 ⚙️ Paso 2. Instalar la CLI Wrangler
 Wrangler es la herramienta oficial para desplegar Workers y D1.
-npm install -g wrangler
 
+npm install -g wrangler
 
 Luego verifica:
 wrangler --version
@@ -287,39 +280,7 @@ Ejemplo de API que devuelve y guarda posts:
 
 api/index.js
 
-export default {
-  async fetch(request, env) {
-    const url = new URL(request.url);
-    
-    if (request.method === "GET" && url.pathname === "/posts") {
-      const { results } = await env.DB.prepare("SELECT * FROM posts ORDER BY id DESC;").all();
-      return Response.json(results);
-    }
-
-    if (request.method === "POST" && url.pathname === "/posts") {
-      const data = await request.json();
-      await env.DB.prepare("INSERT INTO posts (title, content, date) VALUES (?, ?, ?)")
-        .bind(data.title, data.content, new Date().toISOString())
-        .run();
-      return Response.json({ ok: true });
-    }
-
-    return new Response("Not found", { status: 404 });
-  },
-};
-
-
-wrangler.toml
-
-name = "blog-api"
-main = "api/index.js"
-compatibility_date = "2024-10-01"
-
-[[d1_databases]]
-binding = "DB"
-database_name = "blogdb"
-database_id = "<ID_DE_TU_BASE>"
-
+api/wrangler.toml
 
 Despliegas tu API con:
 
@@ -332,41 +293,8 @@ https://blog-api.tu-nombre.workers.dev/posts
 
 🌐 Paso 5. Crear el frontend (Cloudflare Pages)
 
-Sube tu carpeta /frontend a un repo de GitHub (o GitLab).
+frontend/index.html:
 
-En el panel de Cloudflare → Pages → Create a Project → Connect to GitHub.
-
-Elige el repositorio y despliega.
-
-Configura variables de entorno si tu frontend consume la API del Worker.
-
-Ejemplo de frontend/index.html:
-
-<!DOCTYPE html>
-<html>
-<head>
-  <title>Mi Blog Serverless</title>
-</head>
-<body>
-  <h1>Publicaciones</h1>
-  <div id="posts"></div>
-
-  <script>
-  async function loadPosts() {
-    const res = await fetch('https://blog-api.tu-nombre.workers.dev/posts');
-    const posts = await res.json();
-    document.getElementById('posts').innerHTML = posts.map(p => `
-      <article>
-        <h3>${p.title}</h3>
-        <p>${p.content}</p>
-        <small>${p.date}</small>
-      </article>
-    `).join('');
-  }
-  loadPosts();
-  </script>
-</body>
-</html>
 
 🗂️ Paso 6. (Opcional) Usar R2 para archivos
 
